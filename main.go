@@ -2,9 +2,9 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"strings"
 
@@ -13,22 +13,25 @@ import (
 	"github.com/Masterminds/sprig"
 )
 
-var input = flag.String("f", "-", "Input source")
-
 func main() {
+	log.SetPrefix("tmpl: ")
+	log.SetFlags(0)
+	input := flag.String("f", "-", "Input source")
 	flag.Parse()
+
 	in, err := getInput(*input)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error opening input:", err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
-	if err := tmpl(in, os.Stdout, envMap()); err != nil {
-		fmt.Fprintln(os.Stderr, "error opening input:", err)
-		os.Exit(1)
+	if err = tmpl(in, os.Stdout, envMap()); err != nil {
+		log.Fatal(err)
+	}
+	if err = in.Close(); err != nil {
+		log.Fatal(err)
 	}
 }
 
-func getInput(path string) (io.Reader, error) {
+func getInput(path string) (*os.File, error) {
 	if path == "-" {
 		return os.Stdin, nil
 	}
@@ -36,15 +39,16 @@ func getInput(path string) (io.Reader, error) {
 }
 
 func envMap() map[string]string {
-	result := map[string]string{}
-	for _, envvar := range os.Environ() {
+	env := os.Environ()
+	result := make(map[string]string, len(env))
+	for _, envvar := range env {
 		parts := strings.SplitN(envvar, "=", 2)
 		result[parts[0]] = parts[1]
 	}
 	return result
 }
 
-func tmpl(in io.Reader, out io.Writer, ctx interface{}) error {
+func tmpl(in io.Reader, out io.Writer, ctx map[string]string) error {
 	i, err := ioutil.ReadAll(in)
 	if err != nil {
 		return err
